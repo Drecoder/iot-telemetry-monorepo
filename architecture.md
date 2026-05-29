@@ -1,3 +1,6 @@
+# Architecture Diagram
+
+```mermaid
 flowchart TD
     %% Inbound Ingestion Domain
     subgraph InboundAPI [Apps: telemetry-api Subject]
