@@ -1,0 +1,59 @@
+# ==========================================
+# System & General Overrides
+# ==========================================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+
+# ==========================================
+# Node.js / JavaScript / TypeScript Dependencies
+# ==========================================
+node_modules/
+/dist/
+/apps/telemetry-api/dist/
+.npm/
+.eslintcache
+
+# ==========================================
+# Testing & Code Coverage Reports
+# ==========================================
+/coverage/
+.jest/
+*.lcov
+
+# ==========================================
+# Terraform / Infrastructure as Code (IaC)
+# ==========================================
+# Ignore local provider plugins and configuration caches
+.terraform/
+
+# Local state files can contain highly sensitive secrets/passwords
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Ignore override files as they may contain local testing tweaks
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# ==========================================
+# Secrets and Environment Variables
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key

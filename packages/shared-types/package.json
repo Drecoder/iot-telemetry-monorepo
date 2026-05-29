@@ -1,0 +1,14 @@
+{
+  "name": "@iot-fleet/shared-types",
+  "version": "1.0.0",
+  "description": "Invariant IoT payload schemas and type definitions shared across the monorepo",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "private": true,
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

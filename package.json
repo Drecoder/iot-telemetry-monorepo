@@ -1,0 +1,21 @@
+{
+  "name": "iot-fleet-telemetry-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise monorepo for managing a distributed fleet of autonomous IoT robots",
+  "author": "Andres",
+  "license": "ISC",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "install:all": "npm ci",
+    "build": "npm run build --workspaces",
+    "test": "npm test --workspaces --if-present",
+    "clean": "make clean"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

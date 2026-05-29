@@ -1,0 +1,39 @@
+name: Cloud Telemetry Monorepo Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate-and-test:
+    name: Execute Validation and Test Suites
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Uses 'make install' to run a clean 'npm ci' across all monorepo workspaces
+      - name: Install Dependencies
+        run: make install
+
+      # Uses 'make test-app' to run Jest unit tests and mock DynamoDB interactions
+      - name: Run Application Unit Tests
+        run: make test-app
+
+      - name: Setup Terraform CLI
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      # Uses 'make test-infra' to handle terraform init, validate, and native .tftest.hcl assertions
+      - name: Run Infrastructure Testing & Validation
+        run: make test-infra
