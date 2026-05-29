@@ -1,34 +1,32 @@
-graph TD
-    %% User/Client Layer
-    Client([IoT Device / Client]) -->|POST /api/v1/telemetry| ExpressApp[Express Router]
-
-    %% Inbound Ingestion Domain (The Subject)
+flowchart TD
+    %% Inbound Ingestion Domain
     subgraph InboundAPI [Apps: telemetry-api Subject]
-        ExpressApp -->|Input Payload| ValGate{Validation Gate}
-        ValGate -->|Invalid: 400 Bad Request| Client
-        ValGate -->|Valid Payload| KinesisProducer[Kinesis Stream Producer]
+        ExpressApp[Express App] -->|Input Payload| ValGate{Validation Gate}
+        ValGate -->|Invalid| Client[Client]
+        ValGate -->|Valid| KinesisProducer[Kinesis Stream Producer]
     end
 
-    %% Event Broker Layer (Terraform Managed)
+    %% Event Broker Layer
     subgraph EventBroker [Infra: AWS Kinesis Event Bus]
-        KinesisProducer -->|AWS SDK PutRecordCommand| KinesisStream{{"cnh-telemetry-stream (Subject)"}}
+        KinesisStream[(cnh-telemetry-stream)]
     end
 
-    %% Immediate Async Acknowledgement
+    KinesisProducer -->|PutRecordCommand| KinesisStream
     KinesisProducer -->|202 Accepted| Client
 
-    %% Outbound Processing Domain (The Observers)
+    %% Outbound Processing Domain
     subgraph StorageObserver [Apps: processor-storage Observer]
-        KinesisStream -.->|Async Batch Poll| StorageConsumer[Kinesis Stream Consumer]
-        StorageConsumer -->|AWS SDK PutCommand| DynamoDB[(DynamoDB Telemetry Table)]
+        StorageConsumer[Kinesis Stream Consumer] -->|PutCommand| DynamoDB[(DynamoDB Table)]
     end
 
     subgraph AlertsObserver [Apps: processor-alerts Observer]
-        KinesisStream -.->|Async Batch Poll| AlertConsumer[Kinesis Stream Consumer]
-        AlertConsumer -->|Mocked Error Injection| ErrHandler[500/Datadog Error Handler]
+        AlertConsumer[Kinesis Stream Consumer] -->|Error Injection| ErrHandler[Error Handler]
     end
 
-    %% Component Styling
+    KinesisStream -.->|Async Batch Poll| StorageConsumer
+    KinesisStream -.->|Async Batch Poll| AlertConsumer
+
+    %% Styling
     style Client fill:#eceff1,stroke:#607d8b,stroke-width:2px
     style InboundAPI fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
     style EventBroker fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
