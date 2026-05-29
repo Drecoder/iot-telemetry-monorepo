@@ -1,0 +1,11 @@
+{
+  "name": "event-schemas",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true,
+  "devDependencies": {
+    "ts-jest": "^29.4.11",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,33 +1,39 @@
-# System Data Flow & Infrastructure Architecture
-
-The following diagram illustrates the lifecycle of a telemetry data payload as it moves through the application validation layer and interacts with the provisioned AWS cloud infrastructure.
-
-```mermaid
 graph TD
     %% User/Client Layer
     Client([IoT Device / Client]) -->|POST /api/v1/telemetry| ExpressApp[Express Router]
 
-    %% Application Core Layer (Node.js/Jest Verified)
-    subgraph AppRuntime [Node.js v20 App Runtime]
+    %% Inbound Ingestion Domain (The Subject)
+    subgraph InboundAPI [Apps: telemetry-api Subject]
         ExpressApp -->|Input Payload| ValGate{Validation Gate}
         ValGate -->|Invalid: 400 Bad Request| Client
-        ValGate -->|Valid Payload| StorageController[Storage Controller]
+        ValGate -->|Valid Payload| KinesisProducer[Kinesis Stream Producer]
     end
 
-    %% Infrastructure Layer (Terraform Verified)
-    subgraph InfraStack [AWS Cloud Infrastructure]
-        StorageController -->|AWS SDK Store Command| DynamoDB[(DynamoDB Telemetry Table)]
-        StorageController -.->|Mocked Error Injection| ErrHandler[500 Error Handler]
+    %% Event Broker Layer (Terraform Managed)
+    subgraph EventBroker [Infra: AWS Kinesis Event Bus]
+        KinesisProducer -->|AWS SDK PutRecordCommand| KinesisStream{{"cnh-telemetry-stream (Subject)"}}
     end
 
-    %% Response Loop
-    DynamoDB -->|Success Write| StorageController
-    StorageController -->|201 Created| Client
-    ErrHandler -->|500 Internal Server Error| Client
+    %% Immediate Async Acknowledgement
+    KinesisProducer -->|202 Accepted| Client
+
+    %% Outbound Processing Domain (The Observers)
+    subgraph StorageObserver [Apps: processor-storage Observer]
+        KinesisStream -.->|Async Batch Poll| StorageConsumer[Kinesis Stream Consumer]
+        StorageConsumer -->|AWS SDK PutCommand| DynamoDB[(DynamoDB Telemetry Table)]
+    end
+
+    subgraph AlertsObserver [Apps: processor-alerts Observer]
+        KinesisStream -.->|Async Batch Poll| AlertConsumer[Kinesis Stream Consumer]
+        AlertConsumer -->|Mocked Error Injection| ErrHandler[500/Datadog Error Handler]
+    end
 
     %% Component Styling
     style Client fill:#eceff1,stroke:#607d8b,stroke-width:2px
-    style AppRuntime fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style InfraStack fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style InboundAPI fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style EventBroker fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style StorageObserver fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style AlertsObserver fill:#ffebee,stroke:#c62828,stroke-width:2px
     style ValGate fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
+    style KinesisStream fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
     style DynamoDB fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px

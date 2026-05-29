@@ -1,81 +1,100 @@
 import request from 'supertest';
-// Export app from app.ts (instead of just calling app.listen inside it) to import it here safely
-import express from 'express';
+import { KinesisClient, PutRecordCommand } from "@aws-sdk/client-kinesis";
+import app from './app'; // Importing the refactored express instance from app.ts
 
-// Mocking AWS SDK behavior
-const mockSend = jest.fn();
-jest.mock('@aws-sdk/lib-dynamodb', () => ({
-    DynamoDBDocumentClient: {
-        from: () => ({
-            send: (...args: any[]) => mockSend(...args)
-        })
-    },
-    PutCommand: jest.fn()
-}));
-
-// Quick re-creation of app context for pure HTTP testing
-const app = express();
-app.use(express.json());
-
-app.post('/api/v1/telemetry', async (req, res): Promise<any> => {
-    const { robotId, timestamp } = req.body;
-    if (!robotId || !timestamp) {
-        return res.status(400).json({ error: "Missing identity or chronological invariants." });
-    }
-    try {
-        await mockSend();
-        return res.status(201).json({ status: "ACCEPTED" });
-    } catch (err) {
-        return res.status(500).json({ error: "Storage subsystem exception." });
-    }
+// Mock the Kinesis Client (The Subject Event Bus Broker)
+const mockKinesisSend = jest.fn();
+jest.mock("@aws-sdk/client-kinesis", () => {
+    return {
+        KinesisClient: jest.fn().mockImplementation(() => ({
+            send: (...args: any[]) => mockKinesisSend(...args) // Deferred execution bypasses initialization order blocks
+        })),
+        PutRecordCommand: jest.fn().mockImplementation((args) => args)
+    };
 });
 
-describe('POST /api/v1/telemetry', () => {
+describe('Telemetry API - Subject Ingestion Endpoint Unit Tests', () => {
+    
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
-    it('should accept valid telemetry payloads and return 201', async () => {
-        mockSend.mockResolvedValueOnce({}); // Simulate successful DB write
+    it('should validate an inbound robot payload, stream it to Kinesis, and return a 202 Accepted', async () => {
+        // Arrange: Simulate a successful asynchronous write metadata return from AWS Kinesis
+        mockKinesisSend.mockResolvedValueOnce({ SequenceNumber: "496612345678901234567" });
 
+        const validPayload = {
+            robotId: "robot-xl-01",
+            timestamp: 1716984000,
+            latitude: 41.8781,
+            longitude: -87.6298,
+            metrics: { 
+                speed: 12.5, 
+                batteryLevel: 88, 
+                cpuTemperature: 42 
+            }
+        };
+
+        // Act: Invoke the endpoint via supertest agent
         const response = await request(app)
             .post('/api/v1/telemetry')
-            .send({
-                robotId: "robot-xl-01",
-                timestamp: 1716984000,
-                latitude: 41.8781,
-                longitude: -87.6298,
-                metrics: { speed: 12.5, batteryLevel: 88, cpuTemperature: 42 }
-            });
+            .send(validPayload);
 
-        expect(response.status).toBe(201);
-        expect(response.body.status).toBe("ACCEPTED");
-        expect(mockSend).toHaveBeenCalledTimes(1);
+        // Assert: Verify HTTP non-blocking API specifications match design requirements
+        expect(response.status).toBe(202);
+        expect(response.body.status).toBe("Accepted");
+        expect(response.body).toHaveProperty("eventId");
+
+        // Assert: Verify the publisher hand-off interaction with the event broker
+        expect(mockKinesisSend).toHaveBeenCalledTimes(1);
+        
+        const executedCommandArgs = mockKinesisSend.mock.calls[0][0];
+        expect(executedCommandArgs.StreamName).toBe("cnh-telemetry-stream");
+        expect(executedCommandArgs.PartitionKey).toBe("robot-xl-01"); // Sharded cleanly via identity fields
+
+        // Assert: Verify internal wrapper structures match our shared event schema schemas
+        const streamedEnvelope = JSON.parse(Buffer.from(executedCommandArgs.Data).toString('utf-8'));
+        expect(streamedEnvelope.eventType).toBe("TELEMETRY_RECEIVED");
+        expect(streamedEnvelope.eventId).toBe(response.body.eventId);
+        expect(streamedEnvelope.data).toMatchObject(validPayload);
     });
 
-    it('should reject payloads missing critical invariants with a 400', async () => {
+    it('should reject edge payloads missing invariant identification mappings with a 400', async () => {
+        const invalidPayload = {
+            latitude: 41.8781,
+            longitude: -87.6298
+            // Missing robotId, timestamp, and metrics fields completely
+        };
+
         const response = await request(app)
             .post('/api/v1/telemetry')
-            .send({
-                latitude: 41.8781 // missing robotId and timestamp
-            });
+            .send(invalidPayload);
 
+        // Assert: API Gate intercepts payload anomalies before triggering brokers
         expect(response.status).toBe(400);
-        expect(response.body.error).toContain("Missing identity");
-        expect(mockSend).not.toHaveBeenCalled();
+        expect(response.body.error).toBe("Bad Request");
+        expect(response.body.message).toContain("Missing required telemetry fields");
+        expect(mockKinesisSend).not.toHaveBeenCalled();
     });
 
-    it('should return a 500 error if the storage backend throws an exception', async () => {
-        mockSend.mockRejectedValueOnce(new Error("DynamoDB ProvisionedThroughputExceededException"));
+    it('should return a 500 error if the Kinesis event bus stream encounters an infrastructure failure', async () => {
+        // Arrange: Simulate broker-side connection pool timeouts or stream capacity exceptions
+        mockKinesisSend.mockRejectedValueOnce(new Error("Kinesis Stream KMSAccessDeniedException"));
 
+        const validPayload = {
+            robotId: "robot-xl-01",
+            timestamp: 1716984000,
+            metrics: { speed: 0, batteryLevel: 100, cpuTemperature: 35 }
+        };
+
+        // Act: Send request
         const response = await request(app)
             .post('/api/v1/telemetry')
-            .send({
-                robotId: "robot-xl-01",
-                timestamp: 1716984000
-            });
+            .send(validPayload);
 
+        // Assert: System gracefully flags internal subsystem blockages
         expect(response.status).toBe(500);
-        expect(response.body.error).toContain("Storage subsystem exception");
+        expect(response.body.error).toBe("Internal Server Error");
+        expect(response.body.message).toContain("Failed to stream ingestion packet downstream.");
     });
 });
