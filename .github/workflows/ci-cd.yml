@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  # Proactively opts into Node 24 runner environment execution to silence deprecation noise
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   validate-and-test:
     name: Execute Validation and Test Suites
@@ -15,25 +19,21 @@ jobs:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
+      # Upgraded runtime environment target to Node 24
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
-
-      # Uses 'make install' to run a clean 'npm ci' across all monorepo workspaces
-      - name: Install Dependencies
-        run: make install
-
-      # Uses 'make test-app' to run Jest unit tests and mock DynamoDB interactions
-      - name: Run Application Unit Tests
-        run: make test-app
 
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.0
 
-      # Uses 'make test-infra' to handle terraform init, validate, and native .tftest.hcl assertions
-      - name: Run Infrastructure Testing & Validation
-        run: make test-infra
+      # Unified Execution Pipeline: Runs 'npm ci', Jest suites, and 'terraform test/validate'
+      # exactly how it executes successfully on your local WSL 2 command line.
+      - name: Run Complete Test Suite Pipeline
+        run: |
+          make install
+          make test
