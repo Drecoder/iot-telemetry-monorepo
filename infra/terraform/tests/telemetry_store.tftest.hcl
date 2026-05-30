@@ -4,6 +4,18 @@ variables {
   environment = "test-env"
 }
 
+# Instructs Terraform to mock the AWS provider data plane entirely in-memory
+mock_provider "aws" {}
+
+run "validate_dynamodb_payload_configuration" {
+  command = plan
+
+  assert {
+    condition     = aws_dynamodb_table.telemetry_store.billing_mode == "PAY_PER_REQUEST"
+    error_message = "DynamoDB billing mode must be optimized for on-demand telemetry bursts."
+  }
+}
+
 # Run block executes a plan or apply phase to evaluate assertions
 run "validate_dynamodb_payload_configuration" {
   command = plan # "plan" tests configuration logic; change to "apply" for actual sandbox deployment

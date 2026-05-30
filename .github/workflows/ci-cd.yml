@@ -37,3 +37,7 @@ jobs:
         run: |
           make install
           make test
+        env:
+          AWS_ACCESS_KEY_ID: mock-key-id
+          AWS_SECRET_ACCESS_KEY: mock-secret-key
+          AWS_DEFAULT_REGION: us-east-1
