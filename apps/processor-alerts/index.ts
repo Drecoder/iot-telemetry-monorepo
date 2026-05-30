@@ -30,7 +30,6 @@ export async function processAlerts(records: any[]): Promise<void> {
           `[LOW BATTERY] Robot ${robotId} needs charging. Current Level: ${metrics.batteryLevel}%`
         );
       }
-
     } catch (err) {
       console.error("Failed to parse stream record within alerts observer:", err);
     }

@@ -1,8 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "outDir": "./dist",
-    "rootDir": "./"
+    "rootDir": "../../",
+    "rootDirs": [".", "../../packages/event-schemas"]
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist"]

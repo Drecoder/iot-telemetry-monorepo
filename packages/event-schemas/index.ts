@@ -7,6 +7,8 @@ export interface TelemetryPayload {
     latitude?: number;
     longitude?: number;
     fuelLevel?: number;
+    batteryLevel?: number;    
+    cpuTemperature?: number;  
   };
 }
 
