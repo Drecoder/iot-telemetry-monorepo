@@ -5,7 +5,7 @@ import pino from "pino";
 interface TelemetryEvent {
   eventId: string;
   data: {
-    deviceId: string;
+    robotId: string;
     timestamp: string;
     metrics: Record<string, any>;
   };
@@ -33,12 +33,12 @@ export async function processRecords(records: any[]) {
 
       // Write to DynamoDB Table
       eventId = event.eventId;
-      robotId = event.data.deviceId;
+      robotId = event.data.robotId;
       
       await docClient.send(new PutCommand({
         TableName: "DynamoDB-Telemetry-Table",
         Item: {
-          DeviceId: event.data.deviceId,
+          RobotId: event.data.robotId,
           Timestamp: event.data.timestamp,
           EventId: event.eventId,
           Metrics: event.data.metrics,

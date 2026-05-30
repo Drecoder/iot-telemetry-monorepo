@@ -1,5 +1,5 @@
 export interface TelemetryPayload {
-  deviceId: string;
+  robotId: string;
   timestamp: string;
   metrics: {
     speed?: number;

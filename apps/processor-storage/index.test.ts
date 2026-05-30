@@ -31,7 +31,7 @@ describe("Storage Observer - Record Processor", () => {
       eventType: "TELEMETRY_RECEIVED",
       emittedAt: "2026-05-29T11:00:00.000Z",
       data: {
-        deviceId: "tractor-77",
+        robotId: "tractor-77",
         timestamp: "2026-05-29T11:00:00.000Z",
         metrics: { speed: 12, engineTemp: 95 },
       },
@@ -60,7 +60,7 @@ describe("Storage Observer - Record Processor", () => {
     const executedCommandArgs = mockSend.mock.calls[0][0];
     expect(executedCommandArgs.TableName).toBe("DynamoDB-Telemetry-Table");
     expect(executedCommandArgs.Item).toMatchObject({
-      DeviceId: "tractor-77",
+      RobotId: "tractor-77",
       EventId: "test-uuid-1234",
       Metrics: { speed: 12, engineTemp: 95 },
     });
