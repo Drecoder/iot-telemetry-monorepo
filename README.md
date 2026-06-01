@@ -1,3 +1,4 @@
+```markdown
 # IoT Fleet Telemetry Monorepo
 
 A production-ready, full-stack cloud monorepo designed to ingest, validate, and persist high-volume, real-time time-series telemetry data from a globally distributed fleet of 20,000 concurrent autonomous robots.
@@ -29,6 +30,8 @@ cnh-telemetry-monorepo/
 │   ├── processor-storage/ # Stream-to-DynamoDB decoupled ingestion processor
 │   └── telemetry-api/     # TypeScript Edge Ingestion HTTP API & Dockerfile
 ├── infra/
+│   ├── k8s/
+│   │   └── telemetry-ingestor.yaml # Environment-agnostic Kubernetes deployment
 │   └── terraform/         # Declarative AWS Blueprints (VPC, Kinesis, DynamoDB)
 │       ├── messaging.tf   # On-Demand Kinesis Stream configurations
 │       └── tests/         # Native HCL infrastructure plan assertions
@@ -44,58 +47,51 @@ cnh-telemetry-monorepo/
 
 ## 🚀 Local Development & Toolchain
 
-A root-level `Makefile` simplifies local developer operations (DX). Ensure you have Node.js (v20+), Docker, and Terraform (v1.5+) installed locally.
+A root-level `Makefile` handles cross-OS translation loops, abstracting away individual runtime scripts into clean unified macros. Ensure you have Node.js (v20+), Docker Desktop, and Terraform (v1.5+) installed locally.
 
 ### 1. Initialize Project & Workspaces
 
-Install all node module dependencies cleanly across every internal npm workspace:
+Install all node module dependencies cleanly across every internal npm workspace branch:
 
 ```bash
 make install
 
 ```
 
-### 2. Execute Full Test Suite
+### 2. Execute Full Toolchain Pipeline
 
-Trigger both the software unit testing engine (Jest) and the native cloud infrastructure test validations simultaneously to run a full local verification pass:
+Trigger the complete verification and deployment sequence. This single command installs dependencies, runs application unit tests, runs Terraform plan assertions, executes a Checkov SAST security scan, builds your Docker container, handles cross-OS image injection, and applies the manifest directly onto your local Minikube cluster:
 
 ```bash
-make test
+make
 
 ```
 
-### 3. Run Application Tests & Mocking
+### 3. Run Validation Gateways Individually
 
-Run the TypeScript API and worker testing layer independently. This suite isolates business logic from live cloud environments by natively mocking AWS SDK client interactions and capturing structured logger streams via error-state behavior tracking:
+If you want to isolate specific validation sweeps without building images or deploying changes, run the specialized testing blocks:
+
+* **All Quality Gates:** `make test` (Runs application tests, infrastructure assertions, and security scans sequentially)
+* **Application Code Tests:** `make test-app` (Runs TypeScript API and worker unit tests via Jest)
+* **Infrastructure Assertions:** `make test-infra` (Executes native Terraform syntax and configuration plan validation checks)
+* **Security Scanning:** `make security-scan` (Launches a Checkov Static Infrastructure Security Scan via Docker)
+* **Code Coverage Insights:** `make coverage` (Generates application code coverage tables and maps HTML reports to `coverage/lcov-report/index.html`)
+
+### 4. Isolated Cluster Deployment Operations
+
+Manage your local development Kubernetes environments explicitly using the cross-OS WSL2-to-Windows host bridge commands:
 
 ```bash
-make test-app
+make dev-build    # Compiles the telemetry-ingestor container inside WSL
+make dev-load     # Wirelessly loads the container cache into Minikube's engine
+make dev-deploy   # Applies the environment-agnostic YAML and streams live pod updates
+make dev-clean    # Drops the ingestor pods out of your local cluster smoothly
 
 ```
 
-### 4. Run Cloud Infrastructure Assertions
+### 5. Reset Workspace Assets
 
-Validate syntax correctness, check resource compliance, and execute native `.tftest.hcl` plan assertions to verify resource properties (such as valid On-Demand Kinesis stream mode configurations) without spinning up live hardware:
-
-```bash
-make test-infra
-
-```
-
-### 5. Generate Test Coverage Report
-
-Generate comprehensive metrics mapping your application code execution coverage. This project targets a highly stable baseline, maintaining >95% statement coverage across application entrypoints:
-
-```bash
-make coverage
-
-```
-
-*This outputs a summary directly to the terminal and builds a visual HTML dashboard located locally at `coverage/lcov-report/index.html`.*
-
-### 6. Clean Up Workspace
-
-Strip build artifacts, local coverage caches, and compiled JS files out of your workspace directories:
+Strip local code coverage caches, compiled JavaScript outputs, local hidden Terraform provider modules, and running cluster deployment resources simultaneously to restore a pristine directory state:
 
 ```bash
 make clean
@@ -112,3 +108,7 @@ Any pull request or push code modification targeted at the `main` branch trigger
 2. **Software Verification:** Re-runs Jest unit validations across all applications to shield against regression bugs.
 3. **IaC Linting:** Audits Terraform configuration patterns via `terraform fmt`.
 4. **Architectural Compliance:** Natively evaluates structural cloud logic via `terraform test` to ensure infrastructure schemas strictly match cloud provider requirements before allowing continuous delivery state promotions.
+
+```
+
+```

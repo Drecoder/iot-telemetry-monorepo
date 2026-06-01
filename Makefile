@@ -1,50 +1,87 @@
-.PHONY: help install test test-app test-infra security-scan coverage clean
+.PHONY: all help install test test-app test-infra security-scan coverage dev-build dev-load dev-deploy dev-clean clean
 
-# Default target when someone just types 'make'
+# --- CONSTANTS & CONFIGURATION ---
+# FIX: Explicitly define the image name tag constant at the top level
+IMAGE_NAME := telemetry-ingestor:dev
+
+# Default target runs everything from code quality check to local cluster deployment
+all: test dev-build dev-load dev-deploy
+
 help:
 	@echo "========================================================================"
-	@echo "                IoT FLEET TELEMETRY MONOREPO TOOLCHAIN                  "
+	@echo "            IoT FLEET TELEMETRY MONOREPO INTEGRATED TOOLCHAIN           "
 	@echo "========================================================================"
-	@echo "Available commands:"
+	@echo "Verification Commands:"
 	@echo "  make install        - Install all monorepo dependencies cleanly"
 	@echo "  make test           - Run application, infrastructure, and security suites"
 	@echo "  make test-app       - Run application unit tests via Jest"
 	@echo "  make test-infra     - Run native Terraform configuration tests"
 	@echo "  make security-scan  - Execute Checkov Static Infrastructure Security Scan"
 	@echo "  make coverage       - Run application tests and output HTML coverage reports"
-	@echo "  make clean          - Strip build artifacts, coverage reports, and node_modules"
+	@echo "------------------------------------------------------------------------"
+	@echo "Local Minikube Deployment Commands (WSL Bridge):"
+	@echo "  make all            - Run entire validation pipeline, then build & deploy"
+	@echo "  make dev-build      - Build the telemetry-ingestor image in WSL"
+	@echo "  make dev-load       - Inject the built image directly into Minikube"
+	@echo "  make dev-deploy     - Apply production-agnostic manifest to Minikube"
+	@echo "  make dev-clean      - Strip deployment out of the local cluster"
+	@echo "  make clean          - Strip local build artifacts, logs, and coverage"
 	@echo "========================================================================"
 
-# Install dependencies across all npm workspaces
+# --- VERIFICATION & VALIDATION GATEWAY ---
+
 install:
 	npm ci
 
-# Orchestrate all three verification gates sequentially
 test: test-app test-infra security-scan
 
-# Execute TypeScript API unit tests inside workspaces
 test-app:
 	npm test --workspaces --if-present
 
-# Initialize and execute native Terraform structural plan assertions
 test-infra:
 	terraform -chdir=infra/terraform init -backend=false
 	terraform -chdir=infra/terraform validate
 	terraform -chdir=infra/terraform test
 
-# Execute Checkov static analysis (SAST) via Docker to protect local workflow integrity
 security-scan:
 	@echo "========================================================================"
-	@echo "  RUNNING CHECOV STATIC INFRASTRUCTURE SECURITY ANALYZER                "
+	@echo "   RUNNING CHECOV STATIC INFRASTRUCTURE SECURITY ANALYZER                "
 	@echo "========================================================================"
 	docker run --rm -v $(PWD)/infra/terraform:/tf bridgecrew/checkov:latest -d /tf --framework terraform --quiet
 
-# Execute test metrics and generate coverage output
 coverage:
 	npx jest --projects apps/telemetry-api --coverage --coverageDirectory=../../coverage
 
-# Clean up temporary generation assets
-clean:
+
+# --- LOCAL MINIKUBE KUBERNETES DEPLOYMENT LAYER ---
+
+dev-build:
+	@echo "🔨 Building telemetry-ingestor image inside WSL..."
+	docker build --no-cache -t $(IMAGE_NAME) -f apps/telemetry-api/Dockerfile .
+
+dev-load:
+	@echo "🚚 Loading image layer cache directly into Minikube container runtime..."
+	minikube.exe image load $(IMAGE_NAME) --overwrite
+
+dev-deploy:
+	@echo "🧹 Purging historical pod states to clean up conflicting ReplicaSets..."
+	-minikube.exe kubectl -- delete deployment telemetry-ingestor --ignore-not-found=true
+	@echo "🚀 Applying environment-agnostic deployment manifest..."
+	minikube.exe kubectl -- apply -f infra/k8s/telemetry-ingestor.yaml
+	@echo "🔄 Verifying rollout status (waiting for index.ts bootstrap listener)..."
+	-minikube.exe kubectl -- rollout status deployment/telemetry-ingestor --timeout=60s
+	@echo "📊 Finalizing pod initialization status:"
+	minikube.exe kubectl -- get pods
+
+dev-clean:
+	@echo "🧹 Removing telemetry-ingestor deployment from cluster..."
+	-minikube.exe kubectl -- delete -f infra/k8s/telemetry-ingestor.yaml
+
+
+# --- CLEANUP LAYER ---
+
+clean: dev-clean
+	@echo "🧹 Stripping local build artifacts and coverage reports..."
 	rm -rf coverage
 	rm -rf apps/telemetry-api/dist
 	rm -rf infra/terraform/.terraform

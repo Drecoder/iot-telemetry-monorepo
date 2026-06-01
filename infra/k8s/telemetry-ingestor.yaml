@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-ingestor
+  labels:
+    app: telemetry-ingestor
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      app: telemetry-ingestor
+  template:
+    metadata:
+      labels:
+        app: telemetry-ingestor
+    spec:
+      containers:
+      - name: ingestor
+        image: telemetry-ingestor:dev
+        imagePullPolicy: IfNotPresent
+        command: ["node"]
+        args: ["-e", "console.log('ENV CHECK:', process.env.STREAM_ENDPOINT); const express = require('express'); console.log('Express loaded successfully!'); setTimeout(() => console.log('Keep-alive loop exiting'), 5000);"]
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: STREAM_PROVIDER
+          value: "local"
+        - name: STREAM_ENDPOINT
+          value: "http://localstack-service:4566"
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: KINESIS_STREAM_NAME
+          value: "telemetry-stream"
+        # FIX: Provide explicit dummy credentials so AWS SDK initializes seamlessly
+        - name: AWS_ACCESS_KEY_ID
+          value: "mock-key-id"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "mock-secret-key"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry-ingestor-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 3000
+  selector:
+    app: telemetry-ingestor

@@ -35,12 +35,23 @@ output "dynamodb_table_arn" {
 # COMPUTE ORCHESTRATION OUTPUTS
 # ==============================================================================
 
-output "ecs_cluster_name" {
-  description = "The name of the serverless container orchestration cluster"
-  value       = aws_ecs_cluster.telemetry_cluster.name
+output "eks_cluster_name" {
+  description = "The name of the provisioned enterprise EKS cluster"
+  value       = aws_eks_cluster.main.name
 }
 
-output "ecs_cluster_arn" {
-  description = "The Amazon Resource Name assigned to the active container cluster"
-  value       = aws_ecs_cluster.telemetry_cluster.arn
+output "eks_cluster_arn" {
+  description = "The Amazon Resource Name (ARN) of the EKS cluster"
+  value       = aws_eks_cluster.main.arn
+}
+
+output "eks_cluster_endpoint" {
+  description = "The endpoint URL for the EKS Kubernetes API server"
+  value       = aws_eks_cluster.main.endpoint
+}
+
+output "eks_cluster_certificate_authority" {
+  description = "The base64 encoded certificate data required to communicate with the cluster"
+  value       = aws_eks_cluster.main.certificate_authority[0].data
+  sensitive   = true
 }
