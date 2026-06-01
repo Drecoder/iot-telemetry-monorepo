@@ -17,6 +17,7 @@ spec:
       containers:
       - name: ingestor
         image: telemetry-ingestor:dev
+        imagePullPolicy: Never
         ports:
         - containerPort: 3000
         env:

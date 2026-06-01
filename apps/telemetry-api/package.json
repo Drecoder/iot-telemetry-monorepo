@@ -12,7 +12,9 @@
     "@aws-sdk/client-dynamodb": "^3.500.0",
     "@aws-sdk/client-kinesis": "^3.1056.0",
     "@aws-sdk/lib-dynamodb": "^3.500.0",
-    "express": "^4.19.0"
+    "express": "^4.19.0",
+    "event-schemas": "*",
+    "@iot-fleet/shared-types": "*"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

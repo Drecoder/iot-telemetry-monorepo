@@ -1,7 +1,6 @@
 .PHONY: all help install test test-app test-infra security-scan coverage dev-build dev-load dev-deploy dev-clean clean
 
 # --- CONSTANTS & CONFIGURATION ---
-# FIX: Explicitly define the image name tag constant at the top level
 IMAGE_NAME := telemetry-ingestor:dev
 
 # Default target runs everything from code quality check to local cluster deployment
@@ -19,7 +18,7 @@ help:
 	@echo "  make security-scan  - Execute Checkov Static Infrastructure Security Scan"
 	@echo "  make coverage       - Run application tests and output HTML coverage reports"
 	@echo "------------------------------------------------------------------------"
-	@echo "Local Minikube Deployment Commands (WSL Bridge):"
+	@echo "Local Minikube Deployment Commands (WSL Native):"
 	@echo "  make all            - Run entire validation pipeline, then build & deploy"
 	@echo "  make dev-build      - Build the telemetry-ingestor image in WSL"
 	@echo "  make dev-load       - Inject the built image directly into Minikube"
@@ -60,22 +59,26 @@ dev-build:
 	docker build --no-cache -t $(IMAGE_NAME) -f apps/telemetry-api/Dockerfile .
 
 dev-load:
+	@echo "🔍 Validating Minikube profile availability..."
+	@minikube status >/dev/null 2>&1 || (echo "🚀 Minikube cluster stopped or profile missing. Auto-booting driver..." && minikube start --driver=docker)
 	@echo "🚚 Loading image layer cache directly into Minikube container runtime..."
-	minikube.exe image load $(IMAGE_NAME) --overwrite
+	minikube image load $(IMAGE_NAME) --overwrite
 
 dev-deploy:
+	@echo "🔍 Validating Minikube control-plane state before deployment..."
+	@minikube status >/dev/null 2>&1 || (echo "🚀 Minikube cluster stopped or profile missing. Auto-booting driver..." && minikube start --driver=docker)
 	@echo "🧹 Purging historical pod states to clean up conflicting ReplicaSets..."
-	-minikube.exe kubectl -- delete deployment telemetry-ingestor --ignore-not-found=true
+	-minikube kubectl -- delete deployment telemetry-ingestor --ignore-not-found=true
 	@echo "🚀 Applying environment-agnostic deployment manifest..."
-	minikube.exe kubectl -- apply -f infra/k8s/telemetry-ingestor.yaml
+	minikube kubectl -- apply -f infra/k8s/telemetry-ingestor.yaml
 	@echo "🔄 Verifying rollout status (waiting for index.ts bootstrap listener)..."
-	-minikube.exe kubectl -- rollout status deployment/telemetry-ingestor --timeout=60s
+	-minikube kubectl -- rollout status deployment/telemetry-ingestor --timeout=60s
 	@echo "📊 Finalizing pod initialization status:"
-	minikube.exe kubectl -- get pods
+	minikube kubectl -- get pods
 
 dev-clean:
 	@echo "🧹 Removing telemetry-ingestor deployment from cluster..."
-	-minikube.exe kubectl -- delete -f infra/k8s/telemetry-ingestor.yaml
+	-minikube kubectl -- delete -f infra/k8s/telemetry-ingestor.yaml
 
 
 # --- CLEANUP LAYER ---

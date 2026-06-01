@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: telemetry-ingestor-destination
+  namespace: default
+spec:
+  host: telemetry-ingestor
+  subsets:
+    - name: stable
+      labels:
+        version: v1
+    - name: canary
+      labels:
+        version: v2
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100 # Simple Circuit Breaking configuration
+      http:
+        http1MaxPendingRequests: 10
+        maxRequestsPerConnection: 10

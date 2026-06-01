@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: telemetry-ingestor-route
+  namespace: default
+spec:
+  hosts:
+    - telemetry-ingestor
+  http:
+    - route:
+        - destination:
+            host: telemetry-ingestor
+            subset: stable
+          weight: 90
+        - destination:
+            host: telemetry-ingestor
+            subset: canary
+          weight: 10
+      retries:
+        attempts: 3
+        perTryTimeout: 2s

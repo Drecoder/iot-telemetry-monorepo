@@ -1,7 +1,7 @@
 import { processRecords } from "./index";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
-// Mock the AWS DynamoDB Document Client
+// Complete mock implementation simulating AWS Client State
 jest.mock("@aws-sdk/lib-dynamodb", () => {
   const mockSend = jest.fn();
   return {
@@ -10,7 +10,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => {
         send: mockSend,
       }),
     },
-    PutCommand: jest.fn().mockImplementation((args) => args),
+    PutCommand: jest.fn().mockImplementation((args) => ({ input: args })),
   };
 });
 
@@ -19,61 +19,64 @@ describe("Storage Observer - Record Processor", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Grab our mocked send function to spy on assertions
     const client = DynamoDBDocumentClient.from({} as any);
     mockSend = client.send as jest.Mock;
   });
 
   it("should successfully decode an inbound stream event and write it to DynamoDB", async () => {
-    // 1. Mock a standard Kinesis event wrapper containing our TelemetryEvent
-    const sampleEvent = {
-      eventId: "test-uuid-1234",
-      eventType: "TELEMETRY_RECEIVED",
-      emittedAt: "2026-05-29T11:00:00.000Z",
-      data: {
-        robotId: "tractor-77",
-        timestamp: "2026-05-29T11:00:00.000Z",
-        metrics: { speed: 12, engineTemp: 95 },
-      },
+    const samplePayload = {
+      robotId: "tractor-77",
+      timestamp: 1780327859616,
+      latitude: 41.8781,
+      longitude: -87.6298,
+      metrics: { speed: 12, batteryLevel: 85, cpuTemperature: 42 }
     };
 
-    // Kinesis encodes payloads in Base64
-    const base64Payload = Buffer.from(JSON.stringify(sampleEvent)).toString(
-      "base64",
-    );
-
+    const base64Payload = Buffer.from(JSON.stringify(samplePayload)).toString("base64");
     const mockKinesisRecords = [
-      {
-        kinesis: {
-          data: base64Payload,
-        },
-      },
+      { kinesis: { data: base64Payload, sequenceNumber: "4965412389100000000001" } } as any
     ];
 
-    // 2. Execute the Observer logic
+    mockSend.mockResolvedValueOnce({});
+
     await processRecords(mockKinesisRecords);
 
-    // 3. Assertions
     expect(mockSend).toHaveBeenCalledTimes(1);
-
-    // Check that PutCommand was called with the correctly mapped DynamoDB parameters
     const executedCommandArgs = mockSend.mock.calls[0][0];
-    expect(executedCommandArgs.TableName).toBe("DynamoDB-Telemetry-Table");
-    expect(executedCommandArgs.Item).toMatchObject({
-      RobotId: "tractor-77",
-      EventId: "test-uuid-1234",
-      Metrics: { speed: 12, engineTemp: 95 },
-    });
+    expect(executedCommandArgs.input.TableName).toBe("FleetTelemetry");
+    expect(executedCommandArgs.input.Item.robotId).toBe("tractor-77");
   });
 
- it("should catch and log errors gracefully when parsing invalid payloads", async () => {
-  // 1. Setup an intentionally broken payload structure
-  const invalidRecords = [{ kinesis: { data: "not-valid-base64-json" } }];
+  it("should absorb ConditionalCheckFailedException errors silently when handling a duplicate retry", async () => {
+    const samplePayload = {
+      robotId: "tractor-77",
+      timestamp: 1780327859616,
+      latitude: 41.8781,
+      longitude: -87.6298,
+      metrics: { speed: 12, batteryLevel: 85, cpuTemperature: 42 }
+    };
 
-  // 2. Assert that the function handles the internal JSON panic internally without throwing
-  await expect(processRecords(invalidRecords)).resolves.not.toThrow();
+    const base64Payload = Buffer.from(JSON.stringify(samplePayload)).toString("base64");
+    const mockKinesisRecords = [
+      { kinesis: { data: base64Payload, sequenceNumber: "4965412389100000000001" } } as any
+    ];
 
-  // 3. Assert that the invalid payload never caused a database write payload downstream
-  expect(mockSend).not.toHaveBeenCalled();
-});
+    // Simulate DynamoDB identifying a record collision via our ConditionExpression rule
+    const conditionalError = new Error("Conditional check failed");
+    conditionalError.name = "ConditionalCheckFailedException";
+    mockSend.mockRejectedValueOnce(conditionalError);
+
+    // The handler should safely catch the exception and complete processing without crashing
+    await expect(processRecords(mockKinesisRecords)).resolves.not.toThrow();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("should catch and log errors gracefully when parsing invalid payloads", async () => {
+    const invalidRecords = [
+      { kinesis: { data: Buffer.from("~bwڱ;(").toString("base64"), sequenceNumber: "4965412389100000000002" } } as any
+    ];
+
+    await expect(processRecords(invalidRecords)).resolves.not.toThrow();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
 });

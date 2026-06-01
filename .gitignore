@@ -57,3 +57,16 @@ terraform.rc
 .env.production.local
 *.pem
 *.key
+
+# Ignore local vendor binaries and documentation
+istio-1.30.0/
+istio-win.zip
+
+# --- Nx & Workspace Dependency Graph Cache ---
+.nx/workspace-data/
+.nx/cache/
+static/
+
+# --- Local Architecture Diagram Exports ---
+monorepo-architecture.json
+architecture.html

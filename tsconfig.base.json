@@ -11,7 +11,8 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "paths": {
-      "event-schemas": ["packages/event-schemas/index.ts"]
+      "event-schemas": ["packages/event-schemas/index.ts"],
+      "@iot-fleet/shared-types": ["packages/shared-types/src/telemetry.ts"]
     }
   }
 }

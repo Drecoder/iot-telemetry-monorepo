@@ -1,15 +1,18 @@
+---
+
 ```markdown
 # IoT Fleet Telemetry Monorepo
 
 A production-ready, full-stack cloud monorepo designed to ingest, validate, and persist high-volume, real-time time-series telemetry data from a globally distributed fleet of 20,000 concurrent autonomous robots.
 
-This project implements a unified architecture combining **Cloud Platform Engineering (Infrastructure as Code, Hardened Containers, CI/CD)** with **Software Engineering (TypeScript, Node.js, Express)** under a single, cohesive source of truth.
+This project implements a unified architecture combining **Cloud Platform Engineering (Infrastructure as Code, Hardened Containers, Service Mesh, CI/CD)** with **Software Engineering (TypeScript, Node.js, Express)** under a single, cohesive source of truth.
 
 ## 🏗️ Architectural Overview
 
 The system handles streaming edge data by decoupling the ingress layer from the persistence layer to maintain low latencies, smooth out seasonal traffic bursts, and ensure high availability:
 
 * **Ingress Layer:** An AWS Application Load Balancer (ALB) handles SSL/TLS termination and routes inbound JSON payloads over HTTPS securely to the compute layer.
+* **Service Mesh Data Plane:** An Istio-managed infrastructure layer automatically injects sidecar proxies (**Envoy**) to abstract traffic management, enforce zero-trust **mutual TLS (mTLS)** mutual encryption across pod boundaries natively, and provide deep trace analysis without modifying application runtimes.
 * **Stream Ingestion Buffer:** An Amazon Kinesis Data Stream configured in **`ON_DEMAND`** allocation mode natively cushions the platform against massive real-time IoT traffic shocks without requiring manual shard capacity management or risking throughput throttling.
 * **Compute Layer:** High-throughput TypeScript/Node.js REST microservices packaged in minimalist, non-root multi-stage Docker containers (`node:20-alpine`). Workers ingest, validate, and parse stream packets using structured `pino` logging outputs. Orchestrated inside isolated private subnets.
 * **Persistence Layer:** Amazon DynamoDB serves as the transactional time-series datastore, utilizing a distributed partition key (`robotId`) and chronological sort key (`timestamp`) to complete concurrent writes at scale.
@@ -47,7 +50,7 @@ cnh-telemetry-monorepo/
 
 ## 🚀 Local Development & Toolchain
 
-A root-level `Makefile` handles cross-OS translation loops, abstracting away individual runtime scripts into clean unified macros. Ensure you have Node.js (v20+), Docker Desktop, and Terraform (v1.5+) installed locally.
+A root-level `Makefile` handles cross-OS translation loops, abstracting away individual runtime scripts into clean unified macros. Ensure you have Node.js (v20+), Docker Desktop, Istio (v1.30+), and Terraform (v1.5+) installed locally.
 
 ### 1. Initialize Project & Workspaces
 
@@ -97,6 +100,57 @@ Strip local code coverage caches, compiled JavaScript outputs, local hidden Terr
 make clean
 
 ```
+
+---
+
+## ⛵ Service Mesh Integration (Istio & Kiali)
+
+The repository leverages an **Istio Service Mesh** platform layer to manage internal traffic abstractions and live tracing telemetry maps.
+
+### 1. Environment Initialization
+
+To ensure strict structural compatibility between Windows hosts and virtualization containers under WSL2, binaries must run out of native Linux filesystem storage (`~/`).
+
+Execute the initial platform control-plane setup within your **WSL2 Terminal**:
+
+```bash
+# Pull down clean Linux binary package targets natively
+cd ~ && curl -L [https://istio.io/downloadIstio](https://istio.io/downloadIstio) | sh -
+
+# Map target paths to your Linux active shell profile
+echo 'export PATH="$HOME/istio-1.30.0/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+
+# Confirm native validation checks pass
+istioctl version --remote=false
+
+```
+
+### 2. Mesh Deployment & Automatic Sidecar Injection
+
+Apply the mesh topology configuration to your running Minikube container runtime environment and label the workspace namespace to trigger transparent Envoy proxy nesting on pod initialization (`2/2 READY` state execution):
+
+```bash
+# 1. Install Istio core system components onto the cluster profile
+istioctl install --set profile=demo -y
+
+# 2. Instruct the default namespace context to inject sidecar proxies automatically
+kubectl label namespace default istio-injection=enabled --overwrite
+
+# 3. Perform a zero-downtime cluster rolling restart to bundle data planes
+kubectl rollout restart deployment/telemetry-ingestor
+
+```
+
+### 3. Access Traffic Graphs (Kiali Dashboard)
+
+Launch the visual web control interface to trace real-time packet latency distributions, request streams, and live deployment dependency graphs:
+
+```bash
+istioctl dashboard kiali
+
+```
+
+*(WSL Bridge Note: **Ctrl+Click** the terminal output url `http://localhost:20001/kiali` to interact with your live architecture dashboard natively through your Windows web browser).*
 
 ---
 

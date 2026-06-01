@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "../../",
-    "rootDirs": [".", "../../packages/event-schemas"]
+    "rootDirs": [".", "../../packages/event-schemas"],
+    "isolatedModules": true
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist"]
