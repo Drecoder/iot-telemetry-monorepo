@@ -1,12 +1,22 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "outDir": "./dist",
-    "rootDir": "./"
+    "rootDir": "./",
+    "skipLibCheck": true,
+    "types": ["node"],
+    "typeRoots": [
+      "./node_modules/@types",
+      "../../node_modules/@types"
+    ]
   },
+  "references": [
+    { "path": "../../packages/event-schemas" }
+  ],
   "include": [
-    "**/*.ts"
+    "./*.ts"
   ],
   "exclude": [
     "node_modules",

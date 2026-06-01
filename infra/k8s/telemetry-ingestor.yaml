@@ -17,9 +17,6 @@ spec:
       containers:
       - name: ingestor
         image: telemetry-ingestor:dev
-        imagePullPolicy: IfNotPresent
-        command: ["node"]
-        args: ["-e", "console.log('ENV CHECK:', process.env.STREAM_ENDPOINT); const express = require('express'); console.log('Express loaded successfully!'); setTimeout(() => console.log('Keep-alive loop exiting'), 5000);"]
         ports:
         - containerPort: 3000
         env:

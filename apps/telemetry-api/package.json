@@ -4,7 +4,7 @@
   "description": "IoT Fleet Telemetry Ingestion Microservice",
   "main": "dist/app.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -b",
     "start": "node dist/app.js",
     "test": "jest"
   },

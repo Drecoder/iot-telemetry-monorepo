@@ -12,6 +12,7 @@
   "scripts": {
     "install:all": "npm ci",
     "build": "npm run build --workspaces",
+    "start:telemetry-api": "node apps/telemetry-api/dist/index.js",
     "test": "npm test --workspaces --if-present",
     "clean": "make clean"
   },

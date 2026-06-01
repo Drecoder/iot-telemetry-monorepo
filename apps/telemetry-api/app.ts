@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
+import { TelemetryEvent, TelemetryPayload} from "event-schemas";
 import { KinesisClient, PutRecordCommand } from "@aws-sdk/client-kinesis";
-import { TelemetryEvent, TelemetryPayload } from "event-schemas";
 import crypto from "crypto";
 
 const app = express();
