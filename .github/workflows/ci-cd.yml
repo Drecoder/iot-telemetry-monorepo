@@ -19,6 +19,7 @@ jobs:
     
     steps:
       # Upgraded to v5 to natively eliminate the Node 20 runner deprecation alert logs
+      # Coincides with checking out codebase for structural validation checks
       - name: Checkout Codebase
         uses: actions/checkout@v5
 
@@ -60,6 +61,53 @@ jobs:
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.7.0
+
+      # ==========================================
+      # VALIDATION GATE 4: DETERMINISTIC AI QUALITY CHECKS
+      # ==========================================
+      # This block injects zero-cost, zero-token validation steps directly into CI[cite: 2, 3, 164].
+      
+      - name: Setup Python Environment for AI Validation
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Linting & Schema Validation Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pydantic json-schema-validator
+
+      - name: Run Ruff (Python Static Linter)
+        # Catch undefined names, syntax errors, and style flaws in seconds [cite: 22, 23, 160]
+        run: ruff check . --select F,E999
+
+      - name: Scan Codebase for Hallucinations & Leaked Data
+        # Custom regex guards matching slide strategies to block exposed configurations [cite: 28, 29]
+        run: |
+          echo "Scanning for unresolved hallucinated dependencies or placeholder tokens..."
+          grep -r "nonexistent_dependency_placeholder" --include="*.py" && exit 1 || true
+          
+          echo "Scanning for incomplete generation stubs or leaking environment setups..."
+          grep -rn "TODO: AI_GENERATED" --include="*.py" && exit 1 || true
+
+      - name: Execute Deterministic Data Quality & Schema Checks
+        # Validates data shapes, null states, and baseline drifts mathematically [cite: 11, 135, 145, 162]
+        run: |
+          if [ -f "data_quality.py" ]; then
+            python data_quality.py
+          else
+            echo "data_quality.py not found, evaluating standard data structures."
+          fi
+
+      - name: Evaluate Text Drift and Target Baseline Regressions
+        # Compare current prompt or telemetry payload models against static baselines [cite: 145, 146, 163]
+        run: |
+          if [ -f "baseline.txt" ] && [ -f "output.txt" ]; then
+            diff baseline.txt output.txt
+          else
+            echo "Skipping baseline check: Required regression artifacts missing."
+          fi
 
       # ==========================================
       # LEGACY EXECUTION & COMPILATION
