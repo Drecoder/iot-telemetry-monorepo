@@ -7,25 +7,35 @@ on:
     branches: [ main ]
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   INIT_ARCH: amd64
 
 jobs:
-  validate-and-test:
-    name: Execute Validation and Test Suites
-    runs-on: ubuntu-24.04  
+  # ==========================================
+  # JOB 1: STATIC APPLICATION SECURITY TESTING (SAST)
+  # ==========================================
+  static-analysis:
+    name: Lint & IaC Scan
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
-    
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v5
 
-      # ==========================================
-      # VALIDATION GATE 1: CHECKOV STATIC ANALYSIS
-      # ==========================================
-      - name: Run Checkov laC Scanner
-        uses: bridgecrewio/checkov-action@master
+      - name: Check for Infrastructure or Configuration Changes
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            terraform/**
+            **/Dockerfile
+            .github/workflows/**
+
+      - name: Run Checkov IaC Scanner
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: bridgecrewio/checkov-action@v12.2987.0
         with:
           directory: .
           framework: terraform,dockerfile
@@ -33,43 +43,69 @@ jobs:
           output_file_path: results.sarif
         continue-on-error: true
 
-      # ==========================================
-      # VALIDATION GATE 2: DOCKERFILE LINTING
-      # ==========================================
+      - name: Upload Checkov Security Scan Results
+        if: always() && steps.changed-files.outputs.any_changed == 'true'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'results.sarif'
+
       - name: Run Hadolint Dockerfile Linter
+        if: steps.changed-files.outputs.any_changed == 'true'
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
 
-      # ==========================================
-      # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 1)
-      # ==========================================
+  # ==========================================
+  # JOB 2: WORKSPACE COMPILATION, TESTING & DETERMINISTIC AI VALIDATION
+  # ==========================================
+  workspace-lifecycle:
+    name: Test, Validate & Lint Workspace
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # Needed to evaluate diff targets accurately
+
+      - name: Check for Application Source Changes
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **/*.js
+            **/*.ts
+            **/*.json
+            **/*.txt
+            package-lock.json
+            Makefile
+
       - name: Setup Node.js Environment
+        if: steps.changed-files.outputs.any_changed == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
 
-      # FIX 1: Only install ajv-cli globally. ESLint will be resolved natively 
-      # from local node_modules right after your monorepo workspace populates them.
       - name: Install JavaScript CI Tooling
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: npm install -g ajv-cli
 
       - name: Run NPM Manifest Audit
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: npm audit --audit-level=critical
 
-      # ==========================================
-      # VALIDATION GATE 4: DETERMINISTIC AI QUALITY CHECKS (NODE/SHELL)
-      # ==========================================
+      # --- DETERMINISTIC AI QUALITY CHECKS ---
       - name: Scan Codebase for Hallucinations & Leaked Data
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           echo "Scanning for unresolved hallucinated dependencies or placeholder tokens..."
           grep -r "nonexistent_dependency_placeholder" --include="*.js" --include="*.ts" && exit 1 || true
           
-          echo "Scanning for incomplete generation stubs or leaking environment setups..."
+          echo "Scanning for incomplete generation stubs..."
           grep -rn "TODO: AI_GENERATED" --include="*.js" --include="*.ts" && exit 1 || true
 
       - name: Execute Deterministic Schema Validation
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           if [ -f "schema.json" ] && [ -f "output.json" ]; then
             ajv validate -s schema.json -d output.json
@@ -78,6 +114,7 @@ jobs:
           fi
 
       - name: Evaluate Text Drift and Target Baseline Regressions
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           if [ -f "baseline.txt" ] && [ -f "output.txt" ]; then
             diff baseline.txt output.txt
@@ -85,18 +122,15 @@ jobs:
             echo "Skipping baseline check: Required regression artifacts missing."
           fi
 
-      # ==========================================
-      # SETUP TERRAFORM
-      # ==========================================
+      # --- CORE EXECUTION & LOCAL RUNTIME LINTING ---
       - name: Setup Terraform CLI
+        if: steps.changed-files.outputs.any_changed == 'true'
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.7.0
 
-      # ==========================================
-      # LOCAL WORKSPACE COMPILATION & TESTING
-      # ==========================================
       - name: Run Complete Test Suite Pipeline
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           make install
           make test
@@ -105,42 +139,51 @@ jobs:
           AWS_SECRET_ACCESS_KEY: mock-secret-key
           AWS_DEFAULT_REGION: us-east-1
 
-      # ==========================================
-      # VALIDATION GATE 5: MONOREPO CODE LINTING (FLAT CONFIG)
-      # ==========================================
-      - name: Run ESLint (JS Static Linter)
-        # FIX 2: Moved here so npx uses the freshly installed local node_modules context. 
-        # This fixes the missing package errors completely!
+      - name: Run ESLint (JS Static Linter via Local Context)
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: npx eslint . --quiet
 
-      # ==========================================
-      # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 2)
-      # ==========================================
+  # ==========================================
+  # JOB 3: CONTAINER INTROSPECTION (VULNERABILITY SCAN)
+  # ==========================================
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v5
+
+      - name: Check for Application Code or Container Definition Changes
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            apps/telemetry-api/**
+            **/Dockerfile
+            package-lock.json
+
       - name: Build Local Image for Introspection
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: docker build -f apps/telemetry-api/Dockerfile -t local/cloud-telemetry-app:latest .
 
       - name: Create Scan Results Directory
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: mkdir -p scan-results
 
       - name: Run Trivy Container Introspection
-        uses: aquasecurity/trivy-action@master
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: 'local/cloud-telemetry-app:latest'
           format: 'sarif'
           output: 'scan-results/trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
 
-      # ==========================================
-      # NATIVE WORKFLOW OBSERVABILITY
-      # ==========================================
-      - name: Upload Checkov Security Scan Results
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
-        with:
-          sarif_file: 'results.sarif'
-
       - name: Upload Trivy Container Scan Results
+        if: always() && steps.changed-files.outputs.any_changed == 'true' && hashFiles('scan-results/trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
-        if: always() && hashFiles('scan-results/trivy-results.sarif') != ''
         with:
           sarif_file: 'scan-results/trivy-results.sarif'
