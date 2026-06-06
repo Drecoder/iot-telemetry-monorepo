@@ -6,61 +6,50 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Proactively opts into Node 24 runner environment execution to silence deprecation noise
-
 jobs:
   validate-and-test:
     name: Execute Validation and Test Suites
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # FIX: Use Node.js 24 runner
     permissions:
       contents: read
-      security-events: write # Elevate permissions to allow writing security events back to GitHub
+      security-events: write
     
     steps:
+      # FIX: Force Node.js 24 for all JavaScript actions
+      - name: Force Node.js 24 for GitHub Actions
+        run: echo "ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=false" >> $GITHUB_ENV
+
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      # ==========================================
-      # VALIDATION GATE 1: CHECKOV STATIC ANALYSIS
-      # ==========================================
       - name: Run Checkov laC Scanner
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: . # Scans both your Terraform state blueprints and Dockerfiles simultaneously
+          directory: .
           framework: terraform,dockerfile
           output_format: sarif
           output_file_path: results.sarif
-        continue-on-error: true # Ensures SARIF can still be uploaded if issues are found
+        continue-on-error: true
 
-      # ==========================================
-      # VALIDATION GATE 2: DOCKERFILE LINTING
-      # ==========================================
       - name: Run Hadolint Dockerfile Linter
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          recursive: true # Catches anti-patterns like unpinned tags, missing low-privilege USERs, etc.
+          recursive: true
 
-      # ==========================================
-      # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 1)
-      # ==========================================
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
-          node-version: '24' # Upgraded runtime environment target to Node 24
+          node-version: '24'
           cache: 'npm'
 
       - name: Run NPM Manifest Audit
-        run: npm audit --audit-level=critical # Fast-fails early on critical manifest exceptions before building the filesystem
+        run: npm audit --audit-level=critical
 
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.0
 
-      # ==========================================
-      # LEGACY EXECUTION & COMPILATION
-      # ==========================================
       - name: Run Complete Test Suite Pipeline
         run: |
           make install
@@ -70,11 +59,8 @@ jobs:
           AWS_SECRET_ACCESS_KEY: mock-secret-key
           AWS_DEFAULT_REGION: us-east-1
 
-      # ==========================================
-      # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 2)
-      # ==========================================
       - name: Build Local Image for Introspection
-        run: docker build -t local/cloud-telemetry-app:latest . # Builds the image locally to scan the internal filesystem before pushing downstream
+        run: docker build -t local/cloud-telemetry-app:latest .
 
       - name: Run Trivy Container Introspection
         uses: aquasecurity/trivy-action@master
@@ -84,11 +70,9 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
 
-      # ==========================================
-      # NATIVE WORKFLOW OBSERVABILITY
-      # ==========================================
+      # FIX: Upgrade CodeQL from v3 to v4
       - name: Upload Security Results to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3 # Swapped to the official CodeQL runner path to resolve the "repository not found" exception
+        uses: github/codeql-action/upload-sarif@v4  # ← Changed from v3
         if: always()
         with:
-          sarif_file: '.' # Looks for generated results.sarif and trivy-results.sarif
+          sarif_file: '.'
