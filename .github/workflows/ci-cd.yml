@@ -7,7 +7,6 @@ on:
     branches: [ main ]
 
 env:
-  # Proactively opts into Node 24 runner environment execution to silence deprecation noise
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -19,20 +18,49 @@ jobs:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      # Upgraded runtime environment target to Node 24
+      # ==========================================
+      # VALIDATION GATE 1: CHECKOV STATIC ANALYSIS
+      # ==========================================
+      - name: Run Checkov laC Scanner
+        uses: bridgecrewio/checkov-action@master
+        with:
+          # Scans both your Terraform state blueprints and Dockerfiles simultaneously
+          directory: . 
+          framework: terraform,dockerfile
+          output_format: sarif
+          output_file_path: results.sarif
+        continue-on-error: true # Ensures SARIF can still be uploaded if issues are found
+
+      # ==========================================
+      # VALIDATION GATE 2: DOCKERFILE LINTING
+      # ==========================================
+      - name: Run Hadolint Dockerfile Linter
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          # Catches anti-patterns like unpinned tags, missing low-privilege USERs, etc.
+          recursive: true 
+
+      # ==========================================
+      # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 1)
+      # ==========================================
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: 'npm'
 
+      - name: Run NPM Manifest Audit
+        # Fast-fails early on critical manifest exceptions before building the filesystem
+        run: npm audit --audit-level=critical
+
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.0
 
-      # Unified Execution Pipeline: Runs 'npm ci', Jest suites, and 'terraform test/validate'
-      # exactly how it executes successfully on your local WSL 2 command line.
+      # ==========================================
+      # LEGACY EXECUTION & COMPILATION
+      # ==========================================
       - name: Run Complete Test Suite Pipeline
         run: |
           make install
@@ -41,3 +69,27 @@ jobs:
           AWS_ACCESS_KEY_ID: mock-key-id
           AWS_SECRET_ACCESS_KEY: mock-secret-key
           AWS_DEFAULT_REGION: us-east-1
+
+      # ==========================================
+      # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 2)
+      # ==========================================
+      - name: Build Local Image for Introspection
+        # Builds the image locally to scan the internal filesystem before pushing downstream
+        run: docker build -t local/cloud-telemetry-app:latest .
+
+      - name: Run Trivy Container Introspection
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'local/cloud-telemetry-app:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      # ==========================================
+      # NATIVE WORKFLOW OBSERVABILITY
+      # ==========================================
+      - name: Upload Security Results to GitHub Code Scanning
+        uses: github/code-scanning-workflow/upload-sarif@v3
+        if: always() # Guarantees annotations populate the PR even if checks failed
+        with:
+          sarif_file: '.' # Looks for generated results.sarif and trivy-results.sarif
