@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      [cite_start]security-events: write # Elevate permissions to allow writing security events back to GitHub [cite: 53]
+      security-events: write # Elevate permissions to allow writing security events back to GitHub
     
     steps:
       - name: Checkout Codebase
@@ -27,11 +27,11 @@ jobs:
       - name: Run Checkov laC Scanner
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: . # Scans both your Terraform state blueprints and Dockerfiles simultaneously [cite: 18]
+          directory: . # Scans both your Terraform state blueprints and Dockerfiles simultaneously
           framework: terraform,dockerfile
           output_format: sarif
           output_file_path: results.sarif
-        [cite_start]continue-on-error: true # Ensures SARIF can still be uploaded if issues are found [cite: 53]
+        continue-on-error: true # Ensures SARIF can still be uploaded if issues are found
 
       # ==========================================
       # VALIDATION GATE 2: DOCKERFILE LINTING
@@ -39,7 +39,7 @@ jobs:
       - name: Run Hadolint Dockerfile Linter
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          [cite_start]recursive: true # Catches anti-patterns like unpinned tags, missing low-privilege USERs, etc. [cite: 31, 34]
+          recursive: true # Catches anti-patterns like unpinned tags, missing low-privilege USERs, etc.
 
       # ==========================================
       # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 1)
@@ -51,7 +51,7 @@ jobs:
           cache: 'npm'
 
       - name: Run NPM Manifest Audit
-        [cite_start]run: npm audit --audit-level=critical # Fast-fails early on critical manifest exceptions before building the filesystem [cite: 43]
+        run: npm audit --audit-level=critical # Fast-fails early on critical manifest exceptions before building the filesystem
 
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
@@ -74,7 +74,7 @@ jobs:
       # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 2)
       # ==========================================
       - name: Build Local Image for Introspection
-        run: docker build -t local/cloud-telemetry-app:latest . # Builds the image locally to scan the internal filesystem before pushing downstream [cite: 12, 46]
+        run: docker build -t local/cloud-telemetry-app:latest . # Builds the image locally to scan the internal filesystem before pushing downstream
 
       - name: Run Trivy Container Introspection
         uses: aquasecurity/trivy-action@master
@@ -91,4 +91,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3 # Swapped to the official CodeQL runner path to resolve the "repository not found" exception
         if: always()
         with:
-          sarif_file: '.' # Looks for generated results.sarif and trivy-results.sarif [cite: 53]
+          sarif_file: '.' # Looks for generated results.sarif and trivy-results.sarif
