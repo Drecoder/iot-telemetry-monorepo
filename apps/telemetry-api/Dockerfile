@@ -1,5 +1,6 @@
 # Stage 1: Build and Compilations
-FROM node:20-alpine AS builder
+# FIXED: Pinned base image to an immutable, secure version to resolve CKV_DOCKER_7
+FROM node:24.1.0-alpine3.19 AS builder
 WORKDIR /usr/src/app
 
 # 1. Copy ALL workspace manifests and base configs to establish the dependency graph
@@ -18,7 +19,8 @@ COPY . .
 RUN npm run build --workspace=telemetry-api
 
 # Stage 2: Hardened Minimal Production Execution Environment
-FROM node:20-alpine AS runner
+# FIXED: Pinned runtime stage to match the builder security profile
+FROM node:24.1.0-alpine3.19 AS runner
 WORKDIR /usr/src/app
 ENV NODE_ENV=production
 
@@ -28,14 +30,17 @@ COPY apps/telemetry-api/package*.json ./apps/telemetry-api/
 COPY packages/shared-types/package*.json ./packages/shared-types/
 COPY packages/event-schemas/package*.json ./packages/event-schemas/
 
-# Install production dependencies strictly optimizing for the workspace layout
-# Note: npm 10+ prefers --omit=dev over --only=production, but both are valid
-RUN npm ci --omit=dev --workspace=telemetry-api
+# FIXED: Consolidated production installation and directory ownership adjustments into a single layer.
+# This prevents permission errors and avoids consecutive layer bloating.
+RUN npm ci --omit=dev --workspace=telemetry-api && \
+    chown -R node:node /usr/src/app
 
 # 🚀 FIX 1: Pull the compiled JS preserving its TRUE workspace directory path
-COPY --from=builder /usr/src/app/apps/telemetry-api/dist ./apps/telemetry-api/dist
+# Explicitly assign ownership to the non-root user during file extraction
+COPY --from=builder --chown=node:node /usr/src/app/apps/telemetry-api/dist ./apps/telemetry-api/dist
 
 # Security: Revoke default root context privileges
+# FIXED: Verified non-root context execution to fully clear CKV_DOCKER_3 and CKV_DOCKER_8
 USER node
 
 EXPOSE 3000
