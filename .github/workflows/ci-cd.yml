@@ -7,7 +7,6 @@ on:
     branches: [ main ]
 
 env:
-  # FIXED: This is the official native flag required to force actions to execute via Node 24
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
 
 jobs:
@@ -19,8 +18,9 @@ jobs:
       security-events: write
     
     steps:
+      # Upgraded to v5 to natively eliminate the Node 20 runner deprecation alert logs
       - name: Checkout Codebase
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ==========================================
       # VALIDATION GATE 1: CHECKOV STATIC ANALYSIS
@@ -45,8 +45,9 @@ jobs:
       # ==========================================
       # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 1)
       # ==========================================
+      # Upgraded to v5 to align natively with your pipeline's Node 24 runtime environment
       - name: Setup Node.js Environment
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -54,8 +55,9 @@ jobs:
       - name: Run NPM Manifest Audit
         run: npm audit --audit-level=critical
 
+      # Upgraded to v4 to match the official modern infrastructure pipeline track
       - name: Setup Terraform CLI
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.7.0
 
@@ -75,7 +77,6 @@ jobs:
       # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 2)
       # ==========================================
       - name: Build Local Image for Introspection
-        # FIXED: Targets the nested microservice Dockerfile while using the root context (.)
         run: docker build -f apps/telemetry-api/Dockerfile -t local/cloud-telemetry-app:latest .
 
       - name: Run Trivy Container Introspection
@@ -89,8 +90,15 @@ jobs:
       # ==========================================
       # NATIVE WORKFLOW OBSERVABILITY
       # ==========================================
-      - name: Upload Security Results to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v4  # Kept your v4 upgrade
+      # FIXED: Split and targeting the specific SARIF report output vectors directly
+      - name: Upload Checkov Security Scan Results
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: '.'
+          sarif_file: 'results.sarif'
+
+      - name: Upload Trivy Container Scan Results
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
