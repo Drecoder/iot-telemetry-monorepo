@@ -26,7 +26,7 @@ jobs:
 
       - name: Check for Infrastructure or Configuration Changes
         id: changed-files
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@v45.0.3
         with:
           files: |
             terraform/**
@@ -69,7 +69,7 @@ jobs:
 
       - name: Check for Application Source Changes
         id: changed-files
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@v45.0.3
         with:
           files: |
             **/*.js
@@ -158,7 +158,7 @@ jobs:
 
       - name: Check for Application Code or Container Definition Changes
         id: changed-files
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@v45.0.3
         with:
           files: |
             apps/telemetry-api/**
