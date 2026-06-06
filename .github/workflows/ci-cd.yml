@@ -29,8 +29,12 @@ jobs:
       - name: Check for Infrastructure or Configuration Changes
         id: changed-files
         run: |
-          git fetch origin main --depth=1
-          if git diff --name-only origin/main...HEAD | grep -E '^(terraform/|.*/Dockerfile|\.github/workflows/)'; then
+          # Robust target branch definition for push vs PR events
+          TARGET_BRANCH=${{ github.base_ref }}
+          TARGET_BRANCH=${TARGET_BRANCH:-main}
+          git fetch origin $TARGET_BRANCH --depth=1
+          
+          if git diff --name-only origin/$TARGET_BRANCH HEAD | grep -E '^(terraform/|.*/Dockerfile|\.github/workflows/)'; then
             echo "any_changed=true" >> $GITHUB_OUTPUT
           else
             echo "any_changed=false" >> $GITHUB_OUTPUT
@@ -73,8 +77,11 @@ jobs:
       - name: Check for Application Source Changes
         id: changed-files
         run: |
-          git fetch origin main --depth=1
-          if git diff --name-only origin/main...HEAD | grep -E '\.(js|ts|json|txt)$|^package-lock\.json$|^Makefile$'; then
+          TARGET_BRANCH=${{ github.base_ref }}
+          TARGET_BRANCH=${TARGET_BRANCH:-main}
+          git fetch origin $TARGET_BRANCH --depth=1
+          
+          if git diff --name-only origin/$TARGET_BRANCH HEAD | grep -E '\.(js|ts|json|txt)$|^package-lock\.json$|^Makefile$'; then
             echo "any_changed=true" >> $GITHUB_OUTPUT
           else
             echo "any_changed=false" >> $GITHUB_OUTPUT
@@ -162,8 +169,11 @@ jobs:
       - name: Check for Application Code or Container Definition Changes
         id: changed-files
         run: |
-          git fetch origin main --depth=1
-          if git diff --name-only origin/main...HEAD | grep -E '^apps/telemetry-api/|.*/Dockerfile|^package-lock\.json$'; then
+          TARGET_BRANCH=${{ github.base_ref }}
+          TARGET_BRANCH=${TARGET_BRANCH:-main}
+          git fetch origin $TARGET_BRANCH --depth=1
+          
+          if git diff --name-only origin/$TARGET_BRANCH HEAD | grep -E '^apps/telemetry-api/|.*/Dockerfile|^package-lock\.json$'; then
             echo "any_changed=true" >> $GITHUB_OUTPUT
           else
             echo "any_changed=false" >> $GITHUB_OUTPUT
