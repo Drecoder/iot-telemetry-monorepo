@@ -53,10 +53,10 @@ jobs:
       - name: Install JavaScript CI Tooling
         run: npm install -g ajv-cli eslint
 
-      # Fixed: Added the missing comment symbol here
-      # Bond Codebase Quality check
       - name: Run ESLint (JS Static Linter)
-        run: npx eslint . --quiet || echo "ESLint finished evaluation."
+        # FIXED: Removed the hacky fallback pipe. ESLint now acts as a strict gate 
+        # reading natively from your eslint.config.js workspace file.
+        run: npx eslint . --quiet
 
       - name: Run NPM Manifest Audit
         run: npm audit --audit-level=critical
