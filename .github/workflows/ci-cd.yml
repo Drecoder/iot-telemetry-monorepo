@@ -6,22 +6,25 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  # FIXED: This is the official native flag required to force actions to execute via Node 24
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
+
 jobs:
   validate-and-test:
     name: Execute Validation and Test Suites
-    runs-on: ubuntu-24.04  # FIX: Use Node.js 24 runner
+    runs-on: ubuntu-24.04  
     permissions:
       contents: read
       security-events: write
     
     steps:
-      # FIX: Force Node.js 24 for all JavaScript actions
-      - name: Force Node.js 24 for GitHub Actions
-        run: echo "ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=false" >> $GITHUB_ENV
-
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
+      # ==========================================
+      # VALIDATION GATE 1: CHECKOV STATIC ANALYSIS
+      # ==========================================
       - name: Run Checkov laC Scanner
         uses: bridgecrewio/checkov-action@master
         with:
@@ -31,11 +34,17 @@ jobs:
           output_file_path: results.sarif
         continue-on-error: true
 
+      # ==========================================
+      # VALIDATION GATE 2: DOCKERFILE LINTING
+      # ==========================================
       - name: Run Hadolint Dockerfile Linter
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
 
+      # ==========================================
+      # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 1)
+      # ==========================================
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
@@ -50,6 +59,9 @@ jobs:
         with:
           terraform_version: 1.7.0
 
+      # ==========================================
+      # LEGACY EXECUTION & COMPILATION
+      # ==========================================
       - name: Run Complete Test Suite Pipeline
         run: |
           make install
@@ -59,8 +71,12 @@ jobs:
           AWS_SECRET_ACCESS_KEY: mock-secret-key
           AWS_DEFAULT_REGION: us-east-1
 
+      # ==========================================
+      # VALIDATION GATE 3: SUPPLY CHAIN SECURITY (PART 2)
+      # ==========================================
       - name: Build Local Image for Introspection
-        run: docker build -t local/cloud-telemetry-app:latest .
+        # FIXED: Targets the nested microservice Dockerfile while using the root context (.)
+        run: docker build -f apps/telemetry-api/Dockerfile -t local/cloud-telemetry-app:latest .
 
       - name: Run Trivy Container Introspection
         uses: aquasecurity/trivy-action@master
@@ -70,9 +86,11 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
 
-      # FIX: Upgrade CodeQL from v3 to v4
+      # ==========================================
+      # NATIVE WORKFLOW OBSERVABILITY
+      # ==========================================
       - name: Upload Security Results to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v4  # ← Changed from v3
+        uses: github/codeql-action/upload-sarif@v4  # Kept your v4 upgrade
         if: always()
         with:
           sarif_file: '.'
