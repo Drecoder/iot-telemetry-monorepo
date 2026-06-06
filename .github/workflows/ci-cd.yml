@@ -26,7 +26,7 @@ jobs:
 
       - name: Check for Infrastructure or Configuration Changes
         id: changed-files
-        uses: tj-actions/changed-files@v44
+        uses: tj-actions/changed-files@v45
         with:
           files: |
             terraform/**
@@ -65,11 +65,11 @@ jobs:
       - name: Checkout Codebase
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0 # Needed to evaluate diff targets accurately
+          fetch-depth: 0
 
       - name: Check for Application Source Changes
         id: changed-files
-        uses: tj-actions/changed-files@v44
+        uses: tj-actions/changed-files@v45
         with:
           files: |
             **/*.js
@@ -158,7 +158,7 @@ jobs:
 
       - name: Check for Application Code or Container Definition Changes
         id: changed-files
-        uses: tj-actions/changed-files@v44
+        uses: tj-actions/changed-files@v45
         with:
           files: |
             apps/telemetry-api/**
@@ -175,7 +175,7 @@ jobs:
 
       - name: Run Trivy Container Introspection
         if: steps.changed-files.outputs.any_changed == 'true'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'local/cloud-telemetry-app:latest'
           format: 'sarif'
