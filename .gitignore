@@ -8,65 +8,95 @@ Thumbs.db
 *.bak
 
 # ==========================================
-# Node.js / JavaScript / TypeScript Dependencies
+# Node.js / JavaScript / TypeScript
 # ==========================================
 node_modules/
-/dist/
-/apps/telemetry-api/dist/
+dist/
+apps/*/dist/
 .npm/
 .eslintcache
+.nx/
+.nx/cache/
+.nx/workspace-data/
 
 # ==========================================
-# Testing & Code Coverage Reports
+# Testing & Coverage
 # ==========================================
-/coverage/
+coverage/
 .jest/
 *.lcov
+*.coverage
+*.test.ts.snap
 
 # ==========================================
-# Terraform / Infrastructure as Code (IaC)
+# Terraform / IaC
 # ==========================================
-# Ignore local provider plugins and configuration caches
 .terraform/
-
-# Local state files can contain highly sensitive secrets/passwords
 *.tfstate
 *.tfstate.*
-
-# Crash logs
 crash.log
 crash.*.log
-
-# Ignore override files as they may contain local testing tweaks
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-
-# Ignore CLI configuration files
 .terraformrc
 terraform.rc
 
 # ==========================================
-# Secrets and Environment Variables
+# Kubernetes / Istio / Mesh
+# ==========================================
+# Ignore vendor Istio bundles
+istio-1.30.0/
+istio-*.zip
+
+# Ignore local kube configs
+.kube/
+kubeconfig
+
+# ==========================================
+# Secrets & Environment Variables
 # ==========================================
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 *.pem
 *.key
+*.crt
+certs/
 
-# Ignore local vendor binaries and documentation
-istio-1.30.0/
-istio-win.zip
+# ==========================================
+# Docker
+# ==========================================
+*.tar
+*.img
+*.dockerfile-backup
+docker-compose.override.yml
 
-# --- Nx & Workspace Dependency Graph Cache ---
-.nx/workspace-data/
-.nx/cache/
+# ==========================================
+# Python (Bookinfo tests, sample apps)
+# ==========================================
+__pycache__/
+*.pyc
+*.pyo
+
+# ==========================================
+# Go (if added later)
+# ==========================================
+bin/
+*.exe
+*.out
+
+# ==========================================
+# Architecture Exports / Generated Docs
+# ==========================================
+architecture.html
+architecture.json
+monorepo-architecture.json
 static/
 
-# --- Local Architecture Diagram Exports ---
-monorepo-architecture.json
-architecture.html
+# ==========================================
+# Editor / Workspace
+# ==========================================
+.vscode/
+.idea/
+*.swp
